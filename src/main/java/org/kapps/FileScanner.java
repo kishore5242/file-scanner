@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 
@@ -20,56 +21,69 @@ public class FileScanner {
     private static final Logger LOGGER = LoggerFactory.getLogger(FileScanner.class);
 
     public static FileInfo scan(File file) {
-        FileInfo info = new FileInfo();
+        FileInfoBuilder builder = new FileInfoBuilder();
         try {
-            info.path = file.getAbsolutePath();
-            info.sizeBytes = file.length();
-            info.extension = getExtension(file.getName());
+            loadBasicInfo(file, builder);
 
-            // Tika - detect MIME
-            Tika tika = new Tika();
-            info.mimeType = tika.detect(file);
+            loadMimeInfo(file, builder);
 
-            // MD5
-            try (InputStream is = Files.newInputStream(file.toPath())) {
-                info.md5 = DigestUtils.md5Hex(is);
+            loadHashInfo(file, builder);
+
+            if (builder.getMimeType().startsWith("image/")) {
+                loadImageInfo(file, builder);
             }
 
-            // xxHash32
-            byte[] data = Files.readAllBytes(file.toPath());
-            XXHashFactory factory = XXHashFactory.fastestInstance();
-            info.xxHash32 = factory.hash32().hash(data, 0, data.length, 0);
-
-            // Image metadata (JPEG/PNG)
-            if (info.mimeType.startsWith("image/")) {
-                try {
-                    ImageInfo imageInfo = Imaging.getImageInfo(file);
-                    info.width = imageInfo.getWidth();
-                    info.height = imageInfo.getHeight();
-                } catch (Exception e) {
-                    LOGGER.info("Failed to image metadata from {}", file, e);
-                }
-            }
-
-            // Video resolution (if applicable)
-            if (info.mimeType.startsWith("video/")) {
-                try {
-                    FrameGrab grab = FrameGrab.createFrameGrab(NIOUtils.readableChannel(file));
-                    Picture frame = grab.getNativeFrame();
-                    if (frame != null) {
-                        info.width = frame.getWidth();
-                        info.height = frame.getHeight();
-                    }
-                } catch (Exception e) {
-                    LOGGER.info("Failed to video metadata from {}", file, e);
-                }
+            if (builder.getMimeType().startsWith("video/")) {
+                loadVideoInfo(file, builder);
             }
 
         } catch (Exception e) {
             throw new RuntimeException("Error scanning file: " + file, e);
         }
 
-        return info;
+        return builder.build();
+    }
+
+    private static void loadBasicInfo(File file, FileInfoBuilder builder) {
+        builder.path(file.getAbsolutePath()).sizeBytes(file.length())
+                .extension(getExtension(file.getName()));
+    }
+
+    private static void loadVideoInfo(File file, FileInfoBuilder builder) {
+        try {
+            FrameGrab grab = FrameGrab.createFrameGrab(NIOUtils.readableChannel(file));
+            Picture frame = grab.getNativeFrame();
+            if (frame != null) {
+                builder.width(frame.getWidth()).height(frame.getHeight());
+            }
+        } catch (Exception e) {
+            LOGGER.info("Failed to video metadata from {}", file, e);
+        }
+    }
+
+    private static void loadImageInfo(File file, FileInfoBuilder builder) {
+        try {
+            ImageInfo imageInfo = Imaging.getImageInfo(file);
+            builder.width(imageInfo.getWidth()).height(imageInfo.getHeight());
+        } catch (Exception e) {
+            LOGGER.info("Failed to image metadata from {}", file, e);
+        }
+    }
+
+    private static void loadHashInfo(File file, FileInfoBuilder builder) throws IOException {
+        try (InputStream is = Files.newInputStream(file.toPath())) {
+            builder.md5(DigestUtils.md5Hex(is));
+        }
+
+        // xxHash32
+        byte[] data = Files.readAllBytes(file.toPath());
+        XXHashFactory factory = XXHashFactory.fastestInstance();
+        builder.xxHash32(factory.hash32().hash(data, 0, data.length, 0));
+    }
+
+    private static void loadMimeInfo(File file, FileInfoBuilder info) throws IOException {
+        Tika tika = new Tika();
+        info.mimeType(tika.detect(file));
     }
 
     private static String getExtension(String fileName) {

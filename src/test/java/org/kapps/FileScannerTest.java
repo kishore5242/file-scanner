@@ -1,8 +1,10 @@
 package org.kapps;
 
 import org.junit.jupiter.api.Test;
+
 import java.io.File;
 import java.net.URL;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 public class FileScannerTest {
@@ -15,15 +17,13 @@ public class FileScannerTest {
         FileInfo info = FileScanner.scan(testFile);
 
         assertNotNull(info);
-        assertEquals("jpg", info.extension);
-        assertTrue(info.sizeBytes > 0);
-        assertNotNull(info.mimeType);
-        assertNotNull(info.md5);
-        assertTrue(info.xxHash32 != 0);
-        assertNotNull(info.width);
-        assertNotNull(info.height);
-
-        System.out.println(info);
+        assertEquals("jpg", info.getExtension());
+        assertTrue(info.getSizeBytes() > 0);
+        assertNotNull(info.getMimeType());
+        assertNotNull(info.getMd5());
+        assertTrue(info.getXxHash32() != 0);
+        assertNotNull(info.getWidth());
+        assertNotNull(info.getHeight());
     }
 
     @Test
@@ -34,14 +34,14 @@ public class FileScannerTest {
         FileInfo info = FileScanner.scan(testFile);
 
         assertNotNull(info);
-        assertEquals("txt", info.extension);
-        assertTrue(info.sizeBytes > 0);
-        assertNotNull(info.mimeType);
-        assertNotNull(info.md5);
-        assertTrue(info.xxHash32 != 0);
+        assertEquals("txt", info.getExtension());
+        assertTrue(info.getSizeBytes() > 0);
+        assertNotNull(info.getMimeType());
+        assertNotNull(info.getMd5());
+        assertTrue(info.getXxHash32() != 0);
 
-        assertNull(info.width);  // no dimensions for text
-        assertNull(info.height);
+        assertNull(info.getWidth());  // no dimensions for text
+        assertNull(info.getHeight());
     }
 
     private File getResourceFile(String name) {
